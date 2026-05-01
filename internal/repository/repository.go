@@ -15,11 +15,24 @@ type RepositoryInterface interface {
 	Create(context.Context, *entity.Subscription) (uuid.UUID, error)
 	Update(context.Context, *entity.Subscription) error
 	ListByUserID(context.Context, uuid.UUID) ([]*entity.Subscription, error)
-	DeleteByUserID(context.Context, uuid.UUID) error
+	DeleteBySubscriptionID(context.Context, uuid.UUID) error
+	ReadBySubscriptionID(context.Context, uuid.UUID) (*entity.Subscription, error)
+	CountByUserID(context.Context, uuid.UUID, string, string) (uint64, error)
+	CountByServiceName(context.Context, string, string, string) (uint64, error)
 }
 
 type Repository struct {
 	pool *pgxpool.Pool
+}
+
+func NewRepository(connStr string) (RepositoryInterface, error) {
+	pool, err := pgxpool.New(context.Background(), connStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create new repository: %v", err)
+	}
+	return &Repository{
+		pool: pool,
+	}, nil
 }
 
 func (r *Repository) Exist(ctx context.Context, Request *entity.Subscription) (bool, error) {
@@ -85,11 +98,11 @@ func (r *Repository) ListByUserID(ctx context.Context, userID uuid.UUID) ([]*ent
 	return subs, nil
 }
 
-func (r *Repository) Delete(ctx context.Context, userID uuid.UUID) error {
+func (r *Repository) DeleteBySubscriptionID(ctx context.Context, SubscriptionID uuid.UUID) error {
 	query := `
-	DELETE FROM subscriptions WHERE user_id = $1
+	DELETE FROM subscriptions WHERE id = $1
 	`
-	cmd, err := r.pool.Exec(ctx, query, userID)
+	cmd, err := r.pool.Exec(ctx, query, SubscriptionID)
 	if err != nil {
 		return fmt.Errorf("failed to delete subscription: %v", err)
 	}
@@ -97,4 +110,52 @@ func (r *Repository) Delete(ctx context.Context, userID uuid.UUID) error {
 		return fmt.Errorf("failed to delete subscription: subscription doesn't exist")
 	}
 	return nil
+}
+
+func (r *Repository) ReadBySubscriptionID(ctx context.Context, SubscriptionID uuid.UUID) (*entity.Subscription, error) {
+	query := `
+	SELECT * FROM subscriptions WHERE id = $1
+	`
+	row, err := r.pool.Query(ctx, query, SubscriptionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to Read By SubscriptionID: %v", err)
+	}
+	sub := &entity.Subscription{}
+	err = row.Scan(&sub)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan subscription by ID: %v", err)
+	}
+	return sub, nil
+}
+
+func (r *Repository) CountByUserID(ctx context.Context, userID uuid.UUID, start, end string) (uint64, error) {
+	query := ` 
+		SELECT COALESCE(SUM(price), 0)
+        FROM subscriptions
+        WHERE user_id = $1 AND  
+		TO_CHAR(start_date, 'MM-YYYY') >= $2
+    	AND (TO_CHAR(end_date, 'MM-YYYY') <= $3 OR end_date IS NULL)
+	`
+	var sum uint64
+	err := r.pool.QueryRow(ctx, query, userID.String(), start, end).Scan(&sum)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count sum by user id: %v", err)
+	}
+	return sum, nil
+}
+
+func (r *Repository) CountByServiceName(ctx context.Context, serviceName string, start, end string) (uint64, error) {
+	query := ` 
+		SELECT COALESCE(SUM(price), 0)
+        FROM subscriptions
+        WHERE service_name = $1 AND  
+		TO_CHAR(start_date, 'MM-YYYY') >= $2
+    	AND (TO_CHAR(end_date, 'MM-YYYY') <= $3 OR end_date IS NULL)
+	`
+	var sum uint64
+	err := r.pool.QueryRow(ctx, query, serviceName, start, end).Scan(&sum)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count sum by user id: %v", err)
+	}
+	return sum, nil
 }

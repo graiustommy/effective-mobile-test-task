@@ -31,7 +31,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer r.Body.Close()
-	err = h.service.Create(r.Context(), &CreateRequest)
+	id, err = h.service.Create(r.Context(), &CreateRequest)
 	if err != nil {
 		ResponseError(w, err.Error())
 		return
