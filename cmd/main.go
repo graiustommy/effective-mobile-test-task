@@ -26,6 +26,19 @@ const (
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -69,6 +82,11 @@ func main() {
 	router.Use(middleware.Logger)
 	router.Use(middleware.RequestID)
 	router.Use(zapchi.Logger(logger, "router"))
+	router.Use(corsMiddleware)
+	router.Get("/swagger.json", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		http.ServeFile(w, r, "./docs/swagger.json")
+	})
 	router.Post("/create/", handlerInstance.Create)
 	router.Post("/read/", handlerInstance.ReadBySubscriptionID)
 	router.Delete("/delete/", handlerInstance.Delete)

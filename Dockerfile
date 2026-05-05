@@ -22,6 +22,8 @@ COPY --from=builder /build/efftask .
 
 COPY cmd/migrations/ ./cmd/migrations/
 
+COPY docs/ ./docs/
+
 EXPOSE 8080
 
 CMD ["./efftask"]

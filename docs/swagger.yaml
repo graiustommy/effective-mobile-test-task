@@ -1,0 +1,380 @@
+openapi: 3.0.0
+info:
+  title: Subscription Management API
+  description: REST API for managing user subscriptions with date range filtering and aggregation
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+
+paths:
+  /create/:
+    post:
+      tags:
+        - Subscriptions
+      summary: Create a new subscription
+      description: Creates a new subscription with user ID, service name, price, and date range
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionInput'
+      responses:
+        '201':
+          description: Subscription created successfully
+          content:
+            application/json:
+              schema:
+                type: string
+                format: uuid
+                example: "550e8400-e29b-41d4-a716-446655440000"
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /read/:
+    post:
+      tags:
+        - Subscriptions
+      summary: Read subscription by ID
+      description: Retrieves a specific subscription by its ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: string
+              format: uuid
+              example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '202':
+          description: Subscription retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /update/:
+    post:
+      tags:
+        - Subscriptions
+      summary: Update an existing subscription
+      description: Updates an existing subscription with new values
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionInput'
+      responses:
+        '202':
+          description: Subscription updated successfully
+          content:
+            application/json:
+              schema:
+                type: integer
+                example: 202
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /delete/:
+    delete:
+      tags:
+        - Subscriptions
+      summary: Delete a subscription
+      description: Deletes a subscription by ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: string
+              format: uuid
+              example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '202':
+          description: Subscription deleted successfully
+          content:
+            application/json:
+              schema:
+                type: integer
+                example: 202
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /list/:
+    post:
+      tags:
+        - Subscriptions
+      summary: List subscriptions by user ID
+      description: Retrieves all subscriptions for a specific user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: string
+              format: uuid
+              example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '202':
+          description: List of subscriptions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Subscription'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /count-by-user-id/:
+    post:
+      tags:
+        - Aggregation
+      summary: Count subscriptions total price by user ID
+      description: Calculates the total price of subscriptions for a user within a date range
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CountByUserIDRequest'
+      responses:
+        '202':
+          description: Total subscription price retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: integer
+                format: uint64
+                example: 2500
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /count-by-service-name/:
+    post:
+      tags:
+        - Aggregation
+      summary: Count subscriptions total price by service name
+      description: Calculates the total price of subscriptions for a service within a date range
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CountByServiceNameRequest'
+      responses:
+        '202':
+          description: Total subscription price retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: integer
+                format: uint64
+                example: 5000
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    Subscription:
+      type: object
+      required:
+        - id
+        - user_id
+        - service_name
+        - price
+        - start_date
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        user_id:
+          type: string
+          format: uuid
+          example: "7fb6b186-9198-41f4-8b78-d0a9e97804c1"
+        service_name:
+          type: string
+          example: "Netflix"
+        price:
+          type: integer
+          minimum: 0
+          example: 500
+        start_date:
+          type: string
+          pattern: '^\d{2}-\d{4}$'
+          example: "01-2025"
+          description: "Date in MM-YYYY format"
+        end_date:
+          type: string
+          pattern: '^\d{2}-\d{4}$'
+          nullable: true
+          example: "12-2025"
+          description: "Date in MM-YYYY format, optional"
+
+    SubscriptionInput:
+      type: object
+      required:
+        - id
+        - user_id
+        - service_name
+        - price
+        - start_date
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        user_id:
+          type: string
+          format: uuid
+          example: "7fb6b186-9198-41f4-8b78-d0a9e97804c1"
+        service_name:
+          type: string
+          minLength: 1
+          example: "Netflix"
+        price:
+          type: integer
+          minimum: 0
+          example: 500
+        start_date:
+          type: string
+          pattern: '^\d{2}-\d{4}$'
+          example: "01-2025"
+          description: "Date in MM-YYYY format"
+        end_date:
+          type: string
+          pattern: '^\d{2}-\d{4}$'
+          nullable: true
+          example: "12-2025"
+          description: "Date in MM-YYYY format, optional"
+
+    CountByUserIDRequest:
+      type: object
+      required:
+        - user_id
+        - start_date
+        - end_date
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          example: "7fb6b186-9198-41f4-8b78-d0a9e97804c1"
+        start_date:
+          type: string
+          pattern: '^\d{2}-\d{4}$'
+          example: "01-2024"
+          description: "Start date in MM-YYYY format"
+        end_date:
+          type: string
+          pattern: '^\d{2}-\d{4}$'
+          example: "12-2025"
+          description: "End date in MM-YYYY format"
+
+    CountByServiceNameRequest:
+      type: object
+      required:
+        - service_name
+        - start_date
+        - end_date
+      properties:
+        service_name:
+          type: string
+          minLength: 1
+          example: "Netflix"
+        start_date:
+          type: string
+          pattern: '^\d{2}-\d{4}$'
+          example: "01-2024"
+          description: "Start date in MM-YYYY format"
+        end_date:
+          type: string
+          pattern: '^\d{2}-\d{4}$'
+          example: "12-2025"
+          description: "End date in MM-YYYY format"
+
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          enum:
+            - validation_error
+            - not_found
+            - conflict
+            - database_error
+            - internal_error
+            - config_error
+          example: "validation_error"
+        message:
+          type: string
+          example: "invalid date format: expected MM-YYYY"
+
+  responses:
+    ValidationError:
+      description: Validation error - invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: "validation_error"
+            message: "service name is required"
+
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: "not_found"
+            message: "subscription not found"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: "internal_error"
+            message: "failed to process request"
+
+tags:
+  - name: Subscriptions
+    description: Operations for managing subscriptions
+  - name: Aggregation
+    description: Operations for aggregating subscription data
