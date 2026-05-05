@@ -63,7 +63,7 @@ func main() {
 	}
 
 	serv := service.NewService(repo)
-	handlerInstance := handler.NewHandler(serv)
+	handlerInstance := handler.NewHandler(logger, serv)
 
 	router := chi.NewRouter()
 	router.Use(middleware.Logger)
@@ -73,9 +73,9 @@ func main() {
 	router.Post("/read/", handlerInstance.ReadBySubscriptionID)
 	router.Delete("/delete/", handlerInstance.Delete)
 	router.Post("/update/", handlerInstance.Update)
-	router.Post("/count-by-service-name/", handlerInstance.CountByServiceName)
-	router.Post("/count-by-user-id/", handlerInstance.CountByUserID)
 	router.Post("/list/", handlerInstance.ListByUserID)
+	router.Post("/count-by-user-id/", handlerInstance.CountByUserID)
+	router.Post("/count-by-service-name/", handlerInstance.CountByServiceName)
 	logger.Info("server starting", zap.String("address", ":8080"))
 	err = http.ListenAndServe(":8080", router)
 	if err != nil {

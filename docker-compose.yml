@@ -14,3 +14,22 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: efftask-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_USER: ${db_user}
+      DB_PASSWORD: ${db_password}
+      DB_NAME: ${db_name}
+      DB_HOST: postgres
+      DB_PORT: ${db_port}
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env

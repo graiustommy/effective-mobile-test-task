@@ -19,7 +19,6 @@ type RepositoryInterface interface {
 	ReadBySubscriptionID(context.Context, uuid.UUID) (*entity.Subscription, error)
 	CountByUserID(context.Context, uuid.UUID, string, string) (uint64, error)
 	CountByServiceName(context.Context, string, string, string) (uint64, error)
-	GetOverallAmount(context.Context) (uint64, error)
 }
 
 type Repository struct {
@@ -133,12 +132,12 @@ func (r *Repository) ReadBySubscriptionID(ctx context.Context, SubscriptionID uu
 }
 
 func (r *Repository) CountByUserID(ctx context.Context, userID uuid.UUID, start, end string) (uint64, error) {
-	query := ` 
+	query := `
 		SELECT COALESCE(SUM(price), 0)
         FROM subscriptions
         WHERE user_id = $1 AND  
-		TO_CHAR(start_date, 'MM-YYYY') >= $2
-    	AND (TO_CHAR(end_date, 'MM-YYYY') <= $3 OR end_date IS NULL)
+		start_date >= $2
+    	AND (end_date <= $3 OR end_date IS NULL)
 	`
 	var sum uint64
 	err := r.pool.QueryRow(ctx, query, userID.String(), start, end).Scan(&sum)
@@ -149,29 +148,17 @@ func (r *Repository) CountByUserID(ctx context.Context, userID uuid.UUID, start,
 }
 
 func (r *Repository) CountByServiceName(ctx context.Context, serviceName string, start, end string) (uint64, error) {
-	query := ` 
+	query := `
 		SELECT COALESCE(SUM(price), 0)
         FROM subscriptions
         WHERE service_name = $1 AND  
-		TO_CHAR(start_date, 'MM-YYYY') >= $2
-    	AND (TO_CHAR(end_date, 'MM-YYYY') <= $3 OR end_date IS NULL)
+		start_date >= $2
+    	AND (end_date <= $3 OR end_date IS NULL)
 	`
 	var sum uint64
 	err := r.pool.QueryRow(ctx, query, serviceName, start, end).Scan(&sum)
 	if err != nil {
 		return 0, apperrors.Wrap(apperrors.ErrKindDatabase, "failed to count subscriptions by service name", err)
-	}
-	return sum, nil
-}
-
-func (r *Repository) GetOverallAmount(ctx context.Context) (uint64, error) {
-	query := `
-	SELECT COALESCE(SUM(price), 0) FROM subscriptions
-	`
-	var sum uint64
-	err := r.pool.QueryRow(ctx, query).Scan(&sum)
-	if err != nil {
-		return 0, apperrors.Wrap(apperrors.ErrKindDatabase, "failed to get overall amount", err)
 	}
 	return sum, nil
 }

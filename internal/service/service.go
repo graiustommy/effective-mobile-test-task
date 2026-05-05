@@ -18,7 +18,6 @@ type ServiceInterface interface {
 	ListByUserID(context.Context, string) ([]*entity.Subscription, error)
 	CountByUserID(context.Context, *entity.CountPriceByUserID) (uint64, error)
 	CountByServiceName(context.Context, *entity.CountPriceByServiceName) (uint64, error)
-	GetOverallAmount(context.Context) (uint64, error)
 }
 
 type Service struct {
@@ -39,7 +38,6 @@ func (s *Service) Create(ctx context.Context, Request *entity.Subscription) (uui
 	if Request.ServiceName == "" {
 		return uuid.Nil, apperrors.New(apperrors.ErrKindValidation, "service name is required")
 	}
-	// Validate date formats
 	if err := apperrors.ValidateDateFormat(Request.StartDate); err != nil {
 		return uuid.Nil, err
 	}
@@ -106,7 +104,6 @@ func (s *Service) CountByUserID(ctx context.Context, req *entity.CountPriceByUse
 	if err != nil {
 		return 0, apperrors.Wrap(apperrors.ErrKindValidation, "invalid user id", err)
 	}
-	// Validate date formats
 	if err := apperrors.ValidateDateFormat(req.StartDate); err != nil {
 		return 0, err
 	}
@@ -136,8 +133,4 @@ func (s *Service) CountByServiceName(ctx context.Context, req *entity.CountPrice
 		return 0, err
 	}
 	return sum, nil
-}
-
-func (s *Service) GetOverallAmount(ctx context.Context) (uint64, error) {
-	return s.repo.GetOverallAmount(ctx)
 }
