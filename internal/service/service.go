@@ -2,9 +2,9 @@ package service
 
 import (
 	"context"
-	"fmt"
 
 	"effective-task/internal/entity"
+	apperrors "effective-task/internal/errors"
 	"effective-task/internal/repository"
 
 	"github.com/google/uuid"
@@ -16,7 +16,9 @@ type ServiceInterface interface {
 	Update(context.Context, *entity.Subscription) error
 	Delete(context.Context, string) error
 	ListByUserID(context.Context, string) ([]*entity.Subscription, error)
-	CountByUserID(context.Context, string, string, string) (uint64, error)
+	CountByUserID(context.Context, *entity.CountPriceByUserID) (uint64, error)
+	CountByServiceName(context.Context, *entity.CountPriceByServiceName) (uint64, error)
+	GetOverallAmount(context.Context) (uint64, error)
 }
 
 type Service struct {
@@ -32,10 +34,17 @@ func NewService(repo repository.RepositoryInterface) ServiceInterface {
 func (s *Service) Create(ctx context.Context, Request *entity.Subscription) (uuid.UUID, error) {
 	_, err := uuid.Parse(Request.UserID.String())
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("invalid userID")
+		return uuid.Nil, apperrors.Wrap(apperrors.ErrKindValidation, "invalid user id", err)
 	}
 	if Request.ServiceName == "" {
-		return uuid.Nil, fmt.Errorf("serviceName is required")
+		return uuid.Nil, apperrors.New(apperrors.ErrKindValidation, "service name is required")
+	}
+	// Validate date formats
+	if err := apperrors.ValidateDateFormat(Request.StartDate); err != nil {
+		return uuid.Nil, err
+	}
+	if err := apperrors.ValidateDateFormat(Request.EndDate); err != nil {
+		return uuid.Nil, err
 	}
 	id, err := s.repo.Create(ctx, Request)
 	if err != nil {
@@ -47,11 +56,11 @@ func (s *Service) Create(ctx context.Context, Request *entity.Subscription) (uui
 func (s *Service) ReadBySubscriptionID(ctx context.Context, userID string) (*entity.Subscription, error) {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read subscription: %v", err)
+		return nil, apperrors.Wrap(apperrors.ErrKindValidation, "invalid subscription id", err)
 	}
 	sub, err := s.repo.ReadBySubscriptionID(ctx, userUUID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read subscription by ID: %v", err)
+		return nil, err
 	}
 	return sub, nil
 }
@@ -59,14 +68,7 @@ func (s *Service) ReadBySubscriptionID(ctx context.Context, userID string) (*ent
 func (s *Service) Update(ctx context.Context, Request *entity.Subscription) error {
 	_, err := uuid.Parse(Request.UserID.String())
 	if err != nil {
-		return fmt.Errorf("invalid userID")
-	}
-	exist, err := s.repo.Exist(ctx, Request)
-	if err != nil {
-		return fmt.Errorf("failed to update: %v", err)
-	}
-	if !exist {
-		return fmt.Errorf("subscription doesn't exist")
+		return apperrors.Wrap(apperrors.ErrKindValidation, "invalid user id", err)
 	}
 	err = s.repo.Update(ctx, Request)
 	if err != nil {
@@ -78,11 +80,11 @@ func (s *Service) Update(ctx context.Context, Request *entity.Subscription) erro
 func (s *Service) Delete(ctx context.Context, SubscriptionID string) error {
 	subUUID, err := uuid.Parse(SubscriptionID)
 	if err != nil {
-		return fmt.Errorf("invalid SubscriptionID")
+		return apperrors.Wrap(apperrors.ErrKindValidation, "invalid subscription id", err)
 	}
 	err = s.repo.DeleteBySubscriptionID(ctx, subUUID)
 	if err != nil {
-		return fmt.Errorf("failed to delete subscription: %v", err)
+		return err
 	}
 	return nil
 }
@@ -90,21 +92,28 @@ func (s *Service) Delete(ctx context.Context, SubscriptionID string) error {
 func (s *Service) ListByUserID(ctx context.Context, userID string) ([]*entity.Subscription, error) {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid userID")
+		return nil, apperrors.Wrap(apperrors.ErrKindValidation, "invalid user id", err)
 	}
 	subs, err := s.repo.ListByUserID(ctx, userUUID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list by user id: %v", err)
+		return nil, err
 	}
 	return subs, nil
 }
 
-func (s *Service) CountByUserID(ctx context.Context, userID string, start, end string) (uint64, error) {
-	userUUID, err := uuid.Parse(userID)
+func (s *Service) CountByUserID(ctx context.Context, req *entity.CountPriceByUserID) (uint64, error) {
+	userUUID, err := uuid.Parse(req.UserID)
 	if err != nil {
-		return 0, fmt.Errorf("failed to count sum: %v", err)
+		return 0, apperrors.Wrap(apperrors.ErrKindValidation, "invalid user id", err)
 	}
-	sum, err := s.repo.CountByUserID(ctx, userUUID, start, end)
+	// Validate date formats
+	if err := apperrors.ValidateDateFormat(req.StartDate); err != nil {
+		return 0, err
+	}
+	if err := apperrors.ValidateDateFormat(req.EndDate); err != nil {
+		return 0, err
+	}
+	sum, err := s.repo.CountByUserID(ctx, userUUID, req.StartDate, req.EndDate)
 	if err != nil {
 		return 0, err
 	}
@@ -112,14 +121,23 @@ func (s *Service) CountByUserID(ctx context.Context, userID string, start, end s
 	return sum, nil
 }
 
-func (s *Service) CountByServiceName(ctx context.Context, serviceName string, start, end string) (uint64, error) {
-	if serviceName != "" {
-		return 0, fmt.Errorf("failed to count sum: invalid service name")
+func (s *Service) CountByServiceName(ctx context.Context, req *entity.CountPriceByServiceName) (uint64, error) {
+	if req.ServiceName == "" {
+		return 0, apperrors.New(apperrors.ErrKindValidation, "service name is required")
 	}
-	sum, err := s.repo.CountByServiceName(ctx, serviceName, start, end)
+	if err := apperrors.ValidateDateFormat(req.StartDate); err != nil {
+		return 0, err
+	}
+	if err := apperrors.ValidateDateFormat(req.EndDate); err != nil {
+		return 0, err
+	}
+	sum, err := s.repo.CountByServiceName(ctx, req.ServiceName, req.StartDate, req.EndDate)
 	if err != nil {
 		return 0, err
 	}
-
 	return sum, nil
+}
+
+func (s *Service) GetOverallAmount(ctx context.Context) (uint64, error) {
+	return s.repo.GetOverallAmount(ctx)
 }
